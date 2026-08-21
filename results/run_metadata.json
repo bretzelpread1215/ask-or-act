@@ -1,0 +1,24 @@
+{
+  "configuration": {
+    "clarification_cost": 1.0,
+    "correct_action_cost": 0.0,
+    "dirichlet_concentration": 1.0,
+    "incorrect_action_cost": 5.0,
+    "master_seed": 20260820,
+    "n_targets": 3,
+    "noise_sigma": 0.5,
+    "overconfident_temperature": 0.5,
+    "replicate_count": 100,
+    "task_count": 10000,
+    "threshold": 0.8,
+    "underconfident_temperature": 2.0
+  },
+  "interval_method": "two-sided 95% t interval across replicate-level values",
+  "paired_difference": "threshold minus baseline",
+  "seed": 20260820,
+  "versions": {
+    "numpy": "2.5.2",
+    "python": "3.12.14",
+    "scipy": "1.18.0"
+  }
+}

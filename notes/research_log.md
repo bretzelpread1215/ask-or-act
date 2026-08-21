@@ -42,4 +42,19 @@ with perfectly calibrated confidence and known costs, `tau = 0.80` is analytical
 
 ## observations
 
-the full experiment has not been run.
+the primary run completed with 100 replicates of 10,000 tasks and seed `20260820`. paired differences are threshold cost minus baseline cost, with two-sided 95% monte carlo intervals:
+
+| regime | baseline | mean difference | 95% monte carlo interval |
+|---|---|---:|---:|
+| calibrated | always act | -0.982699 | [-0.986991, -0.978407] |
+| calibrated | always ask | -0.040539 | [-0.041764, -0.039314] |
+| overconfident | always act | -0.818036 | [-0.821890, -0.814182] |
+| overconfident | always ask | +0.124124 | [+0.121277, +0.126971] |
+| underconfident | always act | -0.945381 | [-0.949981, -0.940781] |
+| underconfident | always ask | -0.003221 | [-0.003372, -0.003070] |
+| noisy | always act | -1.109893 | [-1.114706, -1.105080] |
+| noisy | always ask | +0.004962 | [+0.003408, +0.006516] |
+
+the csv files retain full precision.
+
+the primary calibrated-confidence claim was supported against both baselines. the threshold policy beat always act in all four regimes. full robustness was not supported because the threshold policy was more costly than always ask under overconfident and noisy confidence. the underconfident advantage over always ask and the noisy disadvantage were both small in magnitude despite narrow monte carlo intervals. within this simulation, the results suggest that a cost-derived threshold depends on the quality of the confidence estimates it receives.
