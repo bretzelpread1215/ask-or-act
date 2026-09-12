@@ -1,28 +1,43 @@
 import numpy as np
 from numpy.typing import NDArray
 
+from ask_or_act.models import DecisionBatch, TaskBatch
+
 
 OutcomeArrays = dict[str, NDArray[np.float64] | NDArray[np.bool_]]
 
+METRIC_DEFINITIONS = {
+    "expected_total_cost": "mean total cost per generated task",
+    "task_success_rate": "successful outcomes divided by all generated tasks",
+    "incorrect_action_rate": "incorrect unclarified actions divided by all generated tasks",
+    "clarification_frequency": "clarification requests divided by all generated tasks",
+}
+
 
 def evaluate_tasks(
-    intended_targets: NDArray[np.int64],
-    asks: NDArray[np.bool_],
-    actions: NDArray[np.int64],
+    tasks: TaskBatch,
+    decisions: DecisionBatch,
     correct_action_cost: float = 0.0,
     clarification_cost: float = 1.0,
     incorrect_action_cost: float = 5.0,
 ) -> OutcomeArrays:
     """evaluate final outcomes, assuming clarification always resolves the target."""
-    intended = np.asarray(intended_targets, dtype=np.int64)
-    asked = np.asarray(asks, dtype=bool)
-    chosen = np.asarray(actions, dtype=np.int64)
-    if intended.ndim != 1 or asked.ndim != 1 or chosen.ndim != 1:
-        raise ValueError("intended_targets, asks, and actions must be one-dimensional")
+    intended = tasks.intended_targets
+    asked = decisions.asks
+    chosen = decisions.actions
     if not (len(intended) == len(asked) == len(chosen)):
-        raise ValueError("intended_targets, asks, and actions must have equal length")
-    if min(correct_action_cost, clarification_cost, incorrect_action_cost) < 0:
+        raise ValueError("tasks and decisions must have equal length")
+    if np.any(chosen >= tasks.true_probabilities.shape[1]):
+        raise ValueError("actions must index a target column")
+    costs = np.asarray(
+        [correct_action_cost, clarification_cost, incorrect_action_cost], dtype=float
+    )
+    if not np.all(np.isfinite(costs)) or np.any(costs < 0):
         raise ValueError("costs must be nonnegative")
+    if incorrect_action_cost <= correct_action_cost:
+        raise ValueError("incorrect_action_cost must exceed correct_action_cost")
+    if not correct_action_cost <= clarification_cost <= incorrect_action_cost:
+        raise ValueError("costs must satisfy correct <= clarification <= incorrect")
 
     incorrect = ~asked & (chosen != intended)
     success = ~incorrect

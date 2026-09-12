@@ -42,6 +42,10 @@ with perfectly calibrated confidence and known costs, `tau = 0.80` is analytical
 
 ## observations
 
+the code represents latent task batches, reported observations, and policy decisions as separate validated objects. this makes the information boundary testable: a policy can inspect reported probabilities but cannot inspect the intended target or true probabilities through its input.
+
+replicate output records include their task count and are validated as a complete panel before summaries or paired comparisons are calculated. duplicate or missing regime-policy rows are rejected.
+
 the primary run completed with 100 replicates of 10,000 tasks and seed `20260820`. paired differences are threshold cost minus baseline cost, with two-sided 95% monte carlo intervals:
 
 | regime | baseline | mean difference | 95% monte carlo interval |

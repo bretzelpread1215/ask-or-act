@@ -1,40 +1,31 @@
 import numpy as np
-from numpy.typing import NDArray
+
+from ask_or_act.models import DecisionBatch, ObservationBatch
 
 
-Decision = tuple[NDArray[np.bool_], NDArray[np.int64]]
-
-
-def _reported_matrix(reported: NDArray[np.float64]) -> NDArray[np.float64]:
-    values = np.asarray(reported, dtype=float)
-    if values.ndim != 2 or values.shape[1] < 2:
-        raise ValueError("reported confidence must be a two-dimensional target matrix")
-    if np.any(values < 0) or not np.allclose(values.sum(axis=1), 1.0):
-        raise ValueError("reported confidence rows must be nonnegative and sum to 1")
-    return values
-
-
-def always_act(reported: NDArray[np.float64]) -> Decision:
-    values = _reported_matrix(reported)
+def always_act(observation: ObservationBatch) -> DecisionBatch:
+    values = observation.reported_probabilities
     asks = np.zeros(values.shape[0], dtype=bool)
     actions = np.argmax(values, axis=1).astype(np.int64)
-    return asks, actions
+    return DecisionBatch(asks, actions)
 
 
-def always_ask(reported: NDArray[np.float64]) -> Decision:
-    values = _reported_matrix(reported)
+def always_ask(observation: ObservationBatch) -> DecisionBatch:
+    values = observation.reported_probabilities
     asks = np.ones(values.shape[0], dtype=bool)
     actions = np.argmax(values, axis=1).astype(np.int64)
-    return asks, actions
+    return DecisionBatch(asks, actions)
 
 
-def threshold_policy(reported: NDArray[np.float64], threshold: float) -> Decision:
-    values = _reported_matrix(reported)
-    if not 0.0 <= threshold <= 1.0:
+def threshold_policy(
+    observation: ObservationBatch, threshold: float
+) -> DecisionBatch:
+    values = observation.reported_probabilities
+    if not np.isfinite(threshold) or not 0.0 <= threshold <= 1.0:
         raise ValueError("threshold must be between 0 and 1")
     asks = values.max(axis=1) < threshold
     actions = np.argmax(values, axis=1).astype(np.int64)
-    return asks, actions
+    return DecisionBatch(asks, actions)
 
 
 def cost_derived_threshold(
@@ -42,7 +33,10 @@ def cost_derived_threshold(
     clarification_cost: float,
     incorrect_action_cost: float,
 ) -> float:
-    if min(correct_action_cost, clarification_cost, incorrect_action_cost) < 0:
+    costs = np.asarray(
+        [correct_action_cost, clarification_cost, incorrect_action_cost], dtype=float
+    )
+    if not np.all(np.isfinite(costs)) or np.any(costs < 0):
         raise ValueError("costs must be nonnegative")
     if incorrect_action_cost <= correct_action_cost:
         raise ValueError("incorrect_action_cost must exceed correct_action_cost")

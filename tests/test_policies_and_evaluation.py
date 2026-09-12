@@ -4,6 +4,7 @@ import pytest
 from ask_or_act.confidence import temperature_scale
 from ask_or_act.config import ExperimentConfig
 from ask_or_act.evaluation import evaluate_tasks, summarize_outcomes
+from ask_or_act.models import DecisionBatch, ObservationBatch, TaskBatch
 from ask_or_act.policies import (
     always_act,
     always_ask,
@@ -47,30 +48,46 @@ def test_cost_derived_threshold_rejects_invalid_cost_order(costs: tuple[float, .
         )
 
 
+def test_configuration_and_threshold_reject_nonfinite_values() -> None:
+    with pytest.raises(ValueError, match="finite"):
+        ExperimentConfig(noise_sigma=float("nan"))
+    with pytest.raises(ValueError, match="nonnegative"):
+        cost_derived_threshold(0.0, 1.0, float("inf"))
+
+
 def test_threshold_policy_acts_at_exact_equality() -> None:
     reported = np.array([[0.8, 0.1, 0.1], [0.79, 0.11, 0.1]])
-    asks, actions = threshold_policy(reported, 0.8)
+    decisions = threshold_policy(ObservationBatch(reported), 0.8)
 
-    np.testing.assert_array_equal(asks, [False, True])
-    np.testing.assert_array_equal(actions, [0, 0])
+    np.testing.assert_array_equal(decisions.asks, [False, True])
+    np.testing.assert_array_equal(decisions.actions, [0, 0])
 
 
 def test_temperature_directions_are_relative_to_calibrated_threshold_policy() -> None:
     probabilities = np.array([[0.75, 0.15, 0.1], [0.85, 0.1, 0.05]])
-    calibrated_asks, _ = threshold_policy(probabilities, 0.8)
-    overconfident_asks, _ = threshold_policy(temperature_scale(probabilities, 0.5), 0.8)
-    underconfident_asks, _ = threshold_policy(temperature_scale(probabilities, 2.0), 0.8)
+    calibrated = threshold_policy(ObservationBatch(probabilities), 0.8)
+    overconfident = threshold_policy(
+        ObservationBatch(temperature_scale(probabilities, 0.5)), 0.8
+    )
+    underconfident = threshold_policy(
+        ObservationBatch(temperature_scale(probabilities, 2.0)), 0.8
+    )
 
-    assert overconfident_asks.mean() < calibrated_asks.mean()
-    assert underconfident_asks.mean() > calibrated_asks.mean()
+    assert overconfident.asks.mean() < calibrated.asks.mean()
+    assert underconfident.asks.mean() > calibrated.asks.mean()
 
 
 def test_clarification_is_successful_and_cannot_also_be_incorrect() -> None:
-    intended = np.array([0, 1, 2])
-    asks = np.array([False, False, True])
-    actions = np.array([0, 0, 0])
+    tasks = TaskBatch(
+        np.full((3, 3), 1 / 3),
+        np.array([0, 1, 2]),
+    )
+    decisions = DecisionBatch(
+        np.array([False, False, True]),
+        np.array([0, 0, 0]),
+    )
 
-    outcomes = evaluate_tasks(intended, asks, actions)
+    outcomes = evaluate_tasks(tasks, decisions)
 
     np.testing.assert_array_equal(outcomes["task_success"], [True, False, True])
     np.testing.assert_array_equal(outcomes["incorrect_action"], [False, True, False])
@@ -83,10 +100,11 @@ def test_clarification_is_successful_and_cannot_also_be_incorrect() -> None:
 
 def test_baseline_policies_have_expected_ask_behavior() -> None:
     reported = np.array([[0.6, 0.3, 0.1], [0.4, 0.35, 0.25]])
-    act_asks, act_actions = always_act(reported)
-    ask_asks, ask_actions = always_ask(reported)
+    observation = ObservationBatch(reported)
+    act_decisions = always_act(observation)
+    ask_decisions = always_ask(observation)
 
-    assert not act_asks.any()
-    assert ask_asks.all()
-    np.testing.assert_array_equal(act_actions, [0, 0])
-    np.testing.assert_array_equal(ask_actions, [0, 0])
+    assert not act_decisions.asks.any()
+    assert ask_decisions.asks.all()
+    np.testing.assert_array_equal(act_decisions.actions, [0, 0])
+    np.testing.assert_array_equal(ask_decisions.actions, [0, 0])

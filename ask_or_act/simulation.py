@@ -20,14 +20,14 @@ METRIC_NAMES = (
 def run_replicate(config: ExperimentConfig, replicate_index: int) -> list[dict[str, Any]]:
     """run every regime and policy on one shared task batch."""
     task_rng, noise_rng = replicate_streams(config.master_seed, replicate_index)
-    probabilities, intended_targets = generate_tasks(
+    tasks = generate_tasks(
         n_tasks=config.task_count,
         concentration=config.dirichlet_concentration,
         rng=task_rng,
         n_targets=config.n_targets,
     )
     regimes = confidence_regimes(
-        probabilities,
+        tasks.true_probabilities,
         noise_rng=noise_rng,
         overconfident_temperature=config.overconfident_temperature,
         underconfident_temperature=config.underconfident_temperature,
@@ -36,18 +36,16 @@ def run_replicate(config: ExperimentConfig, replicate_index: int) -> list[dict[s
 
     records: list[dict[str, Any]] = []
     for regime_name in REGIME_ORDER:
-        reported = regimes[regime_name]
+        observation = regimes[regime_name]
         decisions = {
-            "always_act": always_act(reported),
-            "always_ask": always_ask(reported),
-            "threshold": threshold_policy(reported, config.threshold),
+            "always_act": always_act(observation),
+            "always_ask": always_ask(observation),
+            "threshold": threshold_policy(observation, config.threshold),
         }
         for policy_name in POLICY_ORDER:
-            asks, actions = decisions[policy_name]
             outcomes = evaluate_tasks(
-                intended_targets,
-                asks,
-                actions,
+                tasks,
+                decisions[policy_name],
                 correct_action_cost=config.correct_action_cost,
                 clarification_cost=config.clarification_cost,
                 incorrect_action_cost=config.incorrect_action_cost,
@@ -55,6 +53,7 @@ def run_replicate(config: ExperimentConfig, replicate_index: int) -> list[dict[s
             records.append(
                 {
                     "replicate": replicate_index,
+                    "n_tasks": config.task_count,
                     "regime": regime_name,
                     "policy": policy_name,
                     **summarize_outcomes(outcomes),

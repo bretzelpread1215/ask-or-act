@@ -13,12 +13,20 @@
     "threshold": 0.8,
     "underconfident_temperature": 2.0
   },
+  "evaluation_unit": "one replicate mean over the configured number of tasks",
   "interval_method": "two-sided 95% t interval across replicate-level values",
+  "metric_definitions": {
+    "clarification_frequency": "clarification requests divided by all generated tasks",
+    "expected_total_cost": "mean total cost per generated task",
+    "incorrect_action_rate": "incorrect unclarified actions divided by all generated tasks",
+    "task_success_rate": "successful outcomes divided by all generated tasks"
+  },
   "paired_difference": "threshold minus baseline",
+  "pairing": "policies share tasks within each replicate",
   "seed": 20260820,
   "versions": {
-    "numpy": "2.5.2",
-    "python": "3.12.14",
-    "scipy": "1.18.0"
+    "numpy": "2.5.3",
+    "python": "3.13.14",
+    "scipy": "1.18.1"
   }
 }

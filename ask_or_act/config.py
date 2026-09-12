@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+import math
 
 from ask_or_act.policies import cost_derived_threshold
 
@@ -18,6 +19,25 @@ class ExperimentConfig:
     master_seed: int = 20260820
 
     def __post_init__(self) -> None:
+        integer_fields = {
+            "n_targets": self.n_targets,
+            "task_count": self.task_count,
+            "replicate_count": self.replicate_count,
+            "master_seed": self.master_seed,
+        }
+        if any(type(value) is not int for value in integer_fields.values()):
+            raise ValueError("counts and seeds must be integers")
+        numeric_fields = (
+            self.dirichlet_concentration,
+            self.overconfident_temperature,
+            self.underconfident_temperature,
+            self.noise_sigma,
+            self.correct_action_cost,
+            self.clarification_cost,
+            self.incorrect_action_cost,
+        )
+        if not all(math.isfinite(value) for value in numeric_fields):
+            raise ValueError("configuration values must be finite")
         if self.n_targets < 2:
             raise ValueError("n_targets must be at least 2")
         if self.dirichlet_concentration <= 0:

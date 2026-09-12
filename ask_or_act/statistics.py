@@ -10,7 +10,7 @@ def mean_t_interval(values: ArrayLike, confidence: float = 0.95) -> dict[str, fl
         raise ValueError("values must contain at least two replicate-level results")
     if not np.all(np.isfinite(sample)):
         raise ValueError("values must be finite")
-    if not 0.0 < confidence < 1.0:
+    if not np.isfinite(confidence) or not 0.0 < confidence < 1.0:
         raise ValueError("confidence must be between 0 and 1")
 
     mean = float(sample.mean())

@@ -1,17 +1,75 @@
 import csv
 import json
 import platform
+import math
 from dataclasses import asdict
 from importlib.metadata import version
 from pathlib import Path
 from typing import Any
 
 from ask_or_act.config import ExperimentConfig
+from ask_or_act.evaluation import METRIC_DEFINITIONS
 from ask_or_act.simulation import METRIC_NAMES, POLICY_ORDER, REGIME_ORDER, run_replicate
 from ask_or_act.statistics import mean_t_interval, paired_cost_difference
 
-REPLICATE_FIELDS = ("replicate", "regime", "policy", *METRIC_NAMES)
+REPLICATE_FIELDS = ("replicate", "n_tasks", "regime", "policy", *METRIC_NAMES)
 BASELINE_ORDER = ("always_act", "always_ask")
+
+
+def validate_replicate_panel(records: list[dict[str, Any]]) -> None:
+    """require one valid row per replicate, regime, and policy."""
+    if not records:
+        raise ValueError("replicate records cannot be empty")
+
+    seen: set[tuple[int, str, str]] = set()
+    replicate_ids: set[int] = set()
+    task_counts: set[int] = set()
+    for record in records:
+        required = {"replicate", "n_tasks", "regime", "policy", *METRIC_NAMES}
+        if not required.issubset(record):
+            raise ValueError("replicate record is missing required fields")
+        replicate = record["replicate"]
+        n_tasks = record["n_tasks"]
+        if type(replicate) is not int or replicate < 0:
+            raise ValueError("replicate ids must be nonnegative integers")
+        if type(n_tasks) is not int or n_tasks <= 0:
+            raise ValueError("n_tasks must be a positive integer")
+        if record["regime"] not in REGIME_ORDER or record["policy"] not in POLICY_ORDER:
+            raise ValueError("replicate record has an unknown regime or policy")
+
+        key = (replicate, record["regime"], record["policy"])
+        if key in seen:
+            raise ValueError("replicate panel contains duplicate rows")
+        seen.add(key)
+        replicate_ids.add(replicate)
+        task_counts.add(n_tasks)
+
+        for metric in METRIC_NAMES:
+            value = record[metric]
+            if not isinstance(value, (int, float)) or not math.isfinite(value):
+                raise ValueError("replicate metrics must be finite numbers")
+        for metric in METRIC_NAMES[1:]:
+            if not 0.0 <= record[metric] <= 1.0:
+                raise ValueError("replicate rates must be between 0 and 1")
+        if record["expected_total_cost"] < 0:
+            raise ValueError("expected total cost must be nonnegative")
+        if not math.isclose(
+            record["task_success_rate"] + record["incorrect_action_rate"],
+            1.0,
+            abs_tol=1e-12,
+        ):
+            raise ValueError("success and incorrect-action rates must sum to 1")
+
+    if len(task_counts) != 1:
+        raise ValueError("all replicate rows must use the same task count")
+    expected = {
+        (replicate, regime, policy)
+        for replicate in replicate_ids
+        for regime in REGIME_ORDER
+        for policy in POLICY_ORDER
+    }
+    if seen != expected:
+        raise ValueError("replicate panel must contain every regime-policy combination")
 
 
 def collect_replicates(config: ExperimentConfig) -> list[dict[str, Any]]:
@@ -24,6 +82,7 @@ def collect_replicates(config: ExperimentConfig) -> list[dict[str, Any]]:
 
 def summarize_replicates(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """summarize each regime-policy group across replicate-level values."""
+    validate_replicate_panel(records)
     rows: list[dict[str, Any]] = []
     for regime in REGIME_ORDER:
         for policy in POLICY_ORDER:
@@ -52,6 +111,7 @@ def calculate_paired_cost_differences(
     records: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
     """summarize threshold-minus-baseline costs within each regime."""
+    validate_replicate_panel(records)
     rows: list[dict[str, Any]] = []
     for regime in REGIME_ORDER:
         threshold_by_replicate = {
@@ -101,6 +161,9 @@ def _metadata(config: ExperimentConfig) -> dict[str, Any]:
         "configuration": configuration,
         "seed": config.master_seed,
         "interval_method": "two-sided 95% t interval across replicate-level values",
+        "evaluation_unit": "one replicate mean over the configured number of tasks",
+        "pairing": "policies share tasks within each replicate",
+        "metric_definitions": METRIC_DEFINITIONS,
         "paired_difference": "threshold minus baseline",
         "versions": {
             "numpy": version("numpy"),

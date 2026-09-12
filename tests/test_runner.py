@@ -4,6 +4,7 @@ from collections import Counter
 from pathlib import Path
 
 import numpy as np
+import pytest
 
 from ask_or_act.config import ExperimentConfig
 from ask_or_act.runner import (
@@ -11,6 +12,7 @@ from ask_or_act.runner import (
     collect_replicates,
     run_primary_experiment,
     summarize_replicates,
+    validate_replicate_panel,
 )
 
 
@@ -82,3 +84,31 @@ def test_primary_outputs_are_complete_and_deterministic(tmp_path: Path) -> None:
     assert metadata["configuration"]["threshold"] == 0.8
     assert metadata["seed"] == 72
     assert set(metadata["versions"]) == {"numpy", "python", "scipy"}
+    assert metadata["evaluation_unit"].startswith("one replicate mean")
+    assert set(metadata["metric_definitions"]) == {
+        "expected_total_cost",
+        "task_success_rate",
+        "incorrect_action_rate",
+        "clarification_frequency",
+    }
+
+
+def test_replicate_panel_rejects_duplicate_and_missing_rows() -> None:
+    records = collect_replicates(
+        ExperimentConfig(task_count=20, replicate_count=2, master_seed=5)
+    )
+
+    with pytest.raises(ValueError, match="duplicate"):
+        validate_replicate_panel([*records, records[0].copy()])
+    with pytest.raises(ValueError, match="every regime-policy"):
+        validate_replicate_panel(records[:-1])
+
+
+def test_replicate_panel_rejects_broken_metric_identity() -> None:
+    records = collect_replicates(
+        ExperimentConfig(task_count=20, replicate_count=2, master_seed=6)
+    )
+    records[0] = {**records[0], "task_success_rate": 0.25}
+
+    with pytest.raises(ValueError, match="must sum to 1"):
+        validate_replicate_panel(records)

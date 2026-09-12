@@ -44,10 +44,21 @@ require `c_correct <= c_ask <= c_wrong` and `c_wrong > c_correct`. the primary c
 task-level total cost is
 
 \[
-c_{ask} I(asked) + c_{wrong} I(incorrect).
+c_{ask} I(asked)
++ c_{wrong} I(not\ asked, chosen \ne y)
++ c_{correct} I(not\ asked, chosen = y).
 \]
 
-report expected total cost, task-success rate, incorrect-action rate, and clarification frequency. all rates use all tasks as the denominator.
+the primary experiment sets `c_correct = 0`, so its last term is zero.
+
+report four replicate-level task means:
+
+- expected total cost: total cost summed across generated tasks, divided by all generated tasks
+- task-success rate: successful outcomes divided by all generated tasks
+- incorrect-action rate: incorrect unclarified actions divided by all generated tasks
+- clarification frequency: clarification requests divided by all generated tasks
+
+task-success rate is exactly `1 - incorrect-action rate` under the perfect-clarification assumption. it is retained as an outcome-facing view, not as independent evidence.
 
 clarification is assumed to reveal the intended target perfectly. an asked task incurs only clarification cost and ends successfully. this is an idealized assumption, not a model of real clarification reliability. task success is therefore the complement of incorrect-action rate.
 
@@ -55,7 +66,7 @@ clarification is assumed to reveal the intended target perfectly. an asked task 
 
 run 100 independent replicates of 10,000 tasks from a fixed master seed. within a replicate, generate `p` and `y` once and reuse them for every regime and policy. generate noisy confidence from a separate reproducible random stream.
 
-calculate two-sided 95% t intervals across the 100 replicate-level values. calculate paired policy differences within each replicate before applying the same interval method. these are monte carlo intervals, not estimates of uncertainty about real robots or people.
+calculate two-sided 95% t intervals across the 100 replicate-level means. the replicate is the independent monte carlo evaluation unit, not the individual task. calculate paired policy differences within each replicate before applying the same interval method. policies and confidence regimes reuse the same generated task batch within a replicate. these are monte carlo intervals, not estimates of uncertainty about real robots or people.
 
 ## claims
 
